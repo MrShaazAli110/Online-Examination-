@@ -31,6 +31,54 @@ def check_code_safety(code: str) -> tuple[bool, str]:
             return False, f"Security Violation: Restricted module or call detected ({pattern})"
     return True, ""
 
+def _execute_in_process(code: str, test_input: str, timeout_sec: float = 3.0) -> tuple[str, str, int, bool]:
+    """Fallback runner for serverless execution where OS subprocess spawning may be restricted."""
+    import io
+    import sys
+    import threading
+
+    old_stdin, old_stdout, old_stderr = sys.stdin, sys.stdout, sys.stderr
+    out_buf = io.StringIO()
+    err_buf = io.StringIO()
+    in_buf = io.StringIO(test_input or "")
+
+    sys.stdin = in_buf
+    sys.stdout = out_buf
+    sys.stderr = err_buf
+
+    err_msg = ""
+    exit_code = 0
+    timed_out = False
+
+    def target():
+        nonlocal err_msg, exit_code
+        try:
+            local_vars = {"__name__": "__main__"}
+            exec(code, local_vars)
+        except SystemExit as se:
+            exit_code = se.code if isinstance(se.code, int) else 0
+        except Exception as ex:
+            err_msg = str(ex)
+            exit_code = 1
+
+    t = threading.Thread(target=target)
+    t.daemon = True
+    t.start()
+    t.join(timeout_sec)
+
+    if t.is_alive():
+        timed_out = True
+        err_msg = f"Execution exceeded {timeout_sec} seconds limit."
+
+    sys.stdin, sys.stdout, sys.stderr = old_stdin, old_stdout, old_stderr
+
+    stdout_res = out_buf.getvalue()
+    stderr_res = err_buf.getvalue()
+    if err_msg and err_msg not in stderr_res:
+        stderr_res = (stderr_res + "\n" + err_msg).strip()
+
+    return stdout_res, stderr_res, exit_code, timed_out
+
 def execute_single_case(code: str, test_input: str, expected_output: str, timeout_sec: float = 3.0) -> dict:
     """Executes code with given stdin and compares stdout with expected_output."""
     safe, reason = check_code_safety(code)
@@ -48,40 +96,67 @@ def execute_single_case(code: str, test_input: str, expected_output: str, timeou
     temp_dir = tempfile.gettempdir()
     temp_file = os.path.join(temp_dir, f"sol_{os.getpid()}_{time.time_ns()}.py")
 
-    with open(temp_file, "w", encoding="utf-8") as f:
-        f.write(code)
+    try:
+        with open(temp_file, "w", encoding="utf-8") as f:
+            f.write(code)
+    except Exception:
+        # If filesystem writing fails, use in-process execution directly
+        start_time = time.time()
+        stdout_data, stderr_data, exit_code, timed_out = _execute_in_process(code, test_input, timeout_sec)
+        elapsed_ms = round((time.time() - start_time) * 1000, 2)
+        if timed_out:
+            return {"passed": False, "status": "Time Limit Exceeded", "error": stderr_data, "stdout": "", "expected": expected_output, "runtime_ms": elapsed_ms}
+        norm_actual = "\n".join(line.rstrip() for line in stdout_data.strip().splitlines())
+        norm_expected = "\n".join(line.rstrip() for line in (expected_output or "").strip().splitlines())
+        if exit_code != 0:
+            return {"passed": False, "status": "Runtime Error", "error": stderr_data, "stdout": stdout_data.strip(), "expected": expected_output, "runtime_ms": elapsed_ms}
+        passed = (norm_actual == norm_expected)
+        return {"passed": passed, "status": "Passed" if passed else "Wrong Answer", "stdout": norm_actual, "expected": norm_expected, "error": "", "runtime_ms": elapsed_ms}
 
     start_time = time.time()
     try:
-        proc = subprocess.Popen(
-            [sys.executable, "-I", temp_file],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace"
-        )
+        proc = None
+        use_fallback = False
         try:
-            stdout_data, stderr_data = proc.communicate(input=test_input or "", timeout=timeout_sec)
-            elapsed_ms = round((time.time() - start_time) * 1000, 2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.communicate()
-            return {
-                "passed": False,
-                "status": "Time Limit Exceeded",
-                "error": f"Execution exceeded {timeout_sec} seconds limit.",
-                "stdout": "",
-                "expected": expected_output,
-                "runtime_ms": round(timeout_sec * 1000, 2)
-            }
+            proc = subprocess.Popen(
+                [sys.executable, "-I", temp_file],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace"
+            )
+        except (PermissionError, FileNotFoundError, OSError):
+            use_fallback = True
 
+        if use_fallback:
+            stdout_data, stderr_data, exit_code, timed_out = _execute_in_process(code, test_input, timeout_sec)
+            elapsed_ms = round((time.time() - start_time) * 1000, 2)
+            if timed_out:
+                return {"passed": False, "status": "Time Limit Exceeded", "error": stderr_data, "stdout": "", "expected": expected_output, "runtime_ms": elapsed_ms}
+            return_code = exit_code
+        else:
+            try:
+                stdout_data, stderr_data = proc.communicate(input=test_input or "", timeout=timeout_sec)
+                elapsed_ms = round((time.time() - start_time) * 1000, 2)
+                return_code = proc.returncode
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                return {
+                    "passed": False,
+                    "status": "Time Limit Exceeded",
+                    "error": f"Execution exceeded {timeout_sec} seconds limit.",
+                    "stdout": "",
+                    "expected": expected_output,
+                    "runtime_ms": round(timeout_sec * 1000, 2)
+                }
         # Normalize stdout and expected
         norm_actual = "\n".join(line.rstrip() for line in stdout_data.strip().splitlines())
         norm_expected = "\n".join(line.rstrip() for line in (expected_output or "").strip().splitlines())
 
-        if proc.returncode != 0:
+        if return_code != 0:
             return {
                 "passed": False,
                 "status": "Runtime Error",

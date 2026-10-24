@@ -17,11 +17,13 @@
 4. [Document Question Uploader (Word, PDF, TXT)](#-document-question-uploader-word-pdf-txt)
 5. [Role-Based Access & Result Privacy](#-role-based-access--result-privacy)
 6. [Supabase Setup & Upload Guide](#-supabase-setup--upload-guide)
-7. [GitHub Upload Instructions](#-github-upload-instructions)
-8. [Default Demo Accounts](#-default-demo-accounts)
-9. [Quick Start & Local Setup](#-quick-start--local-setup)
-10. [REST API Documentation](#-rest-api-documentation)
-11. [Project Directory Structure](#-project-directory-structure)
+7. [Serverless Deployment (Vercel & Netlify)](#-serverless-deployment-vercel--netlify)
+8. [GitHub Upload Instructions](#-github-upload-instructions)
+9. [Default Demo Accounts](#-default-demo-accounts)
+10. [Quick Start & Local Setup](#-quick-start--local-setup)
+11. [REST API Documentation](#-rest-api-documentation)
+12. [Project Directory Structure](#-project-directory-structure)
+
 
 ---
 
@@ -159,6 +161,34 @@ ProctorCode is fully prepared for Supabase. You can host the PostgreSQL database
 1. In Supabase, click **Storage** in the left sidebar.
 2. Click **New Bucket** and name it `quiz-documents`.
 3. Set the bucket to **Public** so uploaded assessment files and exports can be viewed.
+
+---
+
+## ☁️ Serverless Deployment (Vercel & Netlify)
+
+ProctorCode is pre-configured for 100% serverless deployment without losing any live coding or proctoring features.
+
+### Option A: Deploy to Vercel (Recommended)
+1. Push your latest code to your GitHub repository:
+   ```bash
+   git add .
+   git commit -m "Configure serverless architecture"
+   git push origin main
+   ```
+2. Go to [Vercel](https://vercel.com) and click **"Add New..."** -> **"Project"**.
+3. Import your GitHub repository (`MrShaazAli110/Online-Examination-`).
+4. In **Environment Variables**, add:
+   - `DATABASE_URL`: `postgresql://postgres:[YOUR-PASSWORD]@db.uxfttpvqfntpzhcqxbwx.supabase.co:5432/postgres`
+   - `SUPABASE_URL`: `https://uxfttpvqfntpzhcqxbwx.supabase.co`
+   - `SUPABASE_KEY`: Your Supabase anon key
+   - `SUPABASE_BUCKET`: `quiz-documents`
+   - `SECRET_KEY`: `super-secret-secure-proctor-quiz-key-2026`
+5. Click **Deploy**. Vercel will automatically build and host the app via `vercel.json` and `api/index.py`.
+
+### Option B: Deploy to Netlify
+1. Connect your repository on [Netlify](https://app.netlify.com/).
+2. Under **Site Configuration** -> **Environment Variables**, add the same variables as above (`DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_BUCKET`, `SECRET_KEY`).
+3. Netlify will automatically detect `netlify.toml` and deploy the frontend and serverless functions via Mangum.
 
 ---
 

@@ -45,6 +45,13 @@ Thumbs.db
 *.swp
 *.swo
 
+# Environment & Local Secrets
+.env
+powershell.cmd
+supabase/.temp/
+
+
 # Temporary test logs
 scratch/
 test_*.log
+

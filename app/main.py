@@ -18,10 +18,13 @@ from .parsers import parse_uploaded_file, parse_questions_from_text
 from .runner import run_all_test_cases, execute_single_case
 from .seed_data import seed_database
 
-# Create tables
-Base.metadata.create_all(bind=engine)
-# Seed default data
-seed_database()
+# Create tables & seed default data safely
+try:
+    Base.metadata.create_all(bind=engine)
+    seed_database()
+except Exception as e:
+    # In serverless environments, DB may already be initialized or momentarily connecting
+    print(f"[Startup Notice] Database initialization: {e}")
 
 app = FastAPI(
     title="Proctored Quiz & Coding Assessment Platform",
