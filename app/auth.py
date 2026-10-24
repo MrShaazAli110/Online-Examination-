@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .models import User
 
-SECRET_KEY = "super-secret-secure-proctor-quiz-key-2026"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-secure-proctor-quiz-key-2026")
 TOKEN_EXPIRY_HOURS = 24
 
 security = HTTPBearer(auto_error=False)

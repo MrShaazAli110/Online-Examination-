@@ -14,8 +14,14 @@ DISALLOWED_PATTERNS = [
     r"\bos\.remove\b",
     r"\bos\.unlink\b",
     r"\bos\.rmdir\b",
+    r"\bimport\s+socket\b",
+    r"\bimport\s+urllib\b",
+    r"\bimport\s+requests\b",
+    r"\bimport\s+http\b",
+    r"\bimport\s+ctypes\b",
     r"\b__import__\(['\"]subprocess['\"]\)",
     r"\b__import__\(['\"]os['\"]\)\.system",
+    r"\b__import__\(['\"]socket['\"]\)",
 ]
 
 def check_code_safety(code: str) -> tuple[bool, str]:
@@ -48,7 +54,7 @@ def execute_single_case(code: str, test_input: str, expected_output: str, timeou
     start_time = time.time()
     try:
         proc = subprocess.Popen(
-            [sys.executable, temp_file],
+            [sys.executable, "-I", temp_file],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

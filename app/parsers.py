@@ -221,6 +221,9 @@ def parse_questions_from_text(raw_text: str) -> list[dict]:
 
 def parse_uploaded_file(filename: str, file_bytes: bytes) -> list[dict]:
     """Dispatches file parsing according to extension (.docx, .pdf, .txt)."""
+    if not file_bytes or len(file_bytes) == 0:
+        raise ValueError("The uploaded file is empty. Please select a valid document.")
+
     ext = filename.lower().split(".")[-1]
     if ext in ["txt", "text"]:
         text = extract_text_from_txt(file_bytes)

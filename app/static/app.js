@@ -719,6 +719,11 @@ function promptExamLockdown(quizId) {
   const quiz = state.quizzes.find(q => q.id === quizId);
   if (!quiz) return;
 
+  if (!quiz.question_count || quiz.question_count === 0) {
+    showToast("This assessment does not have any questions configured yet.", "warning");
+    return;
+  }
+
   state.currentExam = { quizId, quiz };
   document.getElementById("promptQuizTitle").textContent = quiz.title;
   document.getElementById("promptQuizCode").textContent = `Assessment Code: ${quiz.code} | Duration: ${quiz.duration_minutes} Mins`;
@@ -1110,7 +1115,7 @@ function startProctoringListeners() {
   document.addEventListener("cut", blockEvent);
 
   // 6. Block Context Menu (Right Click)
-  document.addEventListener("contextmenu", blockEvent);
+  document.addEventListener("contextmenu", handleContextMenu);
 
   // 7. Block Keyboard Shortcuts (Devtools, F12, Ctrl+U, etc.)
   document.addEventListener("keydown", handleKeyShortcuts);
@@ -1127,13 +1132,20 @@ function stopProctoringListeners() {
   document.removeEventListener("copy", blockEvent);
   document.removeEventListener("paste", blockEvent);
   document.removeEventListener("cut", blockEvent);
-  document.removeEventListener("contextmenu", blockEvent);
+  document.removeEventListener("contextmenu", handleContextMenu);
   document.removeEventListener("keydown", handleKeyShortcuts);
 }
 
 function blockEvent(e) {
   if (state.proctoringActive) {
     e.preventDefault();
+  }
+}
+
+function handleContextMenu(e) {
+  if (state.proctoringActive) {
+    e.preventDefault();
+    throttleViolation("context_menu_blocked", "Right-click context menu was blocked.");
   }
 }
 
@@ -1146,7 +1158,10 @@ function handleKeyShortcuts(e) {
     (e.ctrlKey && (e.key === "u" || e.key === "U" || e.key === "s" || e.key === "S"))
   ) {
     e.preventDefault();
-    triggerProctoringViolation("keyboard_shortcut_blocked", "Attempted to use inspection or unauthorized hotkey.");
+    throttleViolation("keyboard_shortcut_blocked", "Attempted to use inspection or unauthorized hotkey.");
+  } else if (e.ctrlKey && (e.key === "v" || e.key === "V")) {
+    e.preventDefault();
+    throttleViolation("clipboard_paste_blocked", "Attempted to paste external content into exam.");
   }
 }
 

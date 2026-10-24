@@ -295,6 +295,13 @@ async def upload_questions_file(
         content = await file.read()
         parsed_questions = parse_uploaded_file(file.filename, content)
         
+        # If Supabase storage is configured, back up file in cloud bucket
+        try:
+            from .supabase_client import upload_to_supabase_storage
+            upload_to_supabase_storage(file.filename, content, file.content_type or "application/octet-stream")
+        except Exception:
+            pass
+        
         current_max_order = max([q.order_idx for q in quiz.questions], default=0)
         added_objs = []
         for i, q_data in enumerate(parsed_questions):
